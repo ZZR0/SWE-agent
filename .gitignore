@@ -192,3 +192,5 @@ trajectories/*
 
 # PyCharm
 .idea/
+
+miniconda3
