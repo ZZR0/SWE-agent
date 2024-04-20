@@ -564,7 +564,7 @@ def anthropic_query(model: Union[AnthropicModel, BedrockModel], history: list[di
     Query the Anthropic API with the given `history` and return the response.
     """
     # Preserve behavior for older models
-    if model.api_model in ["claude-instant", "claude-2.0"] or \
+    if model.api_model in ["claude-instant", "claude-2.0", "claude-2.1"] or \
        (isinstance(model, BedrockModel) and model.api_model in ["anthropic.claude-instant-v1", "anthropic.claude-v2"]):
         # Perform Anthropic API call
         prompt = anthropic_history_to_messages(model, history)
@@ -896,7 +896,7 @@ class InstantEmptySubmitTestModel(BaseModel):
             action = "DISCUSSION\nblah blah\n\n```\ncreate reproduce.py\n```\n"
         elif self._action_idx == 1:
             self._action_idx = 0
-            action = "DISCUSSION\nblargh glargh\n\n```\nsubmit```\n"
+            action = "DISCUSSION\nblargh glargh\n\n```\nsubmit\n```\n"
         return action
 
 
