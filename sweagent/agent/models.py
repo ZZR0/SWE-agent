@@ -275,7 +275,83 @@ class OpenAIModel(BaseModel):
         self.update_stats(input_tokens, output_tokens)
         return response.choices[0].message.content
 
+class LocalModel(BaseModel):
+    MODELS = {
+        "vllm-llama3-70b": {
+            "max_context": 8_192,
+            "cost_per_input_token": 5e-07,
+            "cost_per_output_token": 1.5e-06,
+            "name": "/hdd2/zzr/models/llama3-instruct-70b/",
+        },
+        "tgi-llama3-70b": {
+            "max_context": 8_192,
+            "cost_per_input_token": 5e-07,
+            "cost_per_output_token": 1.5e-06,
+            "name": "tgi",
+        },
+    }
 
+    SHORTCUTS = {
+        "vllm-llama3-70b": "vllm-llama3-70b",
+        "tgi-llama3-70b": "tgi-llama3-70b",
+    }
+    
+    def __init__(self, args: ModelArguments, commands: list[Command]):
+        super().__init__(args, commands)
+
+        # Set OpenAI key
+        cfg = config.Config(os.path.join(os.getcwd(), "keys.cfg"))
+        if self.args.model_name.startswith("azure"):
+            self.api_model = cfg["AZURE_OPENAI_DEPLOYMENT"]
+            self.client = AzureOpenAI(api_key=cfg["AZURE_OPENAI_API_KEY"], azure_endpoint=cfg["AZURE_OPENAI_ENDPOINT"], api_version=cfg.get("AZURE_OPENAI_API_VERSION", "2024-02-01"))
+        else:
+            api_base_url: Optional[str] = cfg.get("OPENAI_API_BASE_URL", None)
+            self.client = OpenAI(api_key=cfg["OPENAI_API_KEY"], base_url=api_base_url)
+
+    def history_to_messages(
+        self, history: list[dict[str, str]], is_demonstration: bool = False
+    ) -> Union[str, list[dict[str, str]]]:
+        """
+        Create `messages` by filtering out all keys except for role/content per `history` turn
+        """
+        # Remove system messages if it is a demonstration
+        if is_demonstration:
+            history = [entry for entry in history if entry["role"] != "system"]
+            return '\n'.join([entry["content"] for entry in history])
+        # Return history components with just role, content fields
+        return [
+            {k: v for k, v in entry.items() if k in ["role", "content"]}
+            for entry in history
+        ]
+    
+    @retry(
+        wait=wait_random_exponential(min=1, max=15),
+        reraise=True,
+        stop=stop_after_attempt(3),
+        retry=retry_if_not_exception_type((CostLimitExceededError, RuntimeError)),
+    )
+    def query(self, history: list[dict[str, str]]) -> str:
+        """
+        Query the OpenAI API with the given `history` and return the response.
+        """
+        try:
+            # Perform OpenAI API call
+            response = self.client.chat.completions.create(
+                messages=self.history_to_messages(history),
+                model=self.model_metadata["name"],
+                temperature=self.args.temperature,
+                top_p=self.args.top_p,
+                max_tokens=4096,
+                stop="<|eot_id|>"
+            )
+        except BadRequestError:
+            raise CostLimitExceededError(f"Context window ({self.model_metadata['max_context']} tokens) exceeded")
+        # Calculate + update costs, return response
+        input_tokens = response.usage.prompt_tokens
+        output_tokens = response.usage.completion_tokens
+        self.update_stats(input_tokens, output_tokens)
+        return response.choices[0].message.content
+    
 class AnthropicModel(BaseModel):
     MODELS = {
         "claude-instant": {
@@ -849,5 +925,7 @@ def get_model(args: ModelArguments, commands: Optional[list[Command]] = None):
         return OllamaModel(args, commands)
     elif args.model_name in TogetherModel.SHORTCUTS:
         return TogetherModel(args, commands)
+    elif args.model_name.startswith("vllm") or args.model_name.startswith("tgi"):
+        return LocalModel(args, commands)
     else:
         raise ValueError(f"Invalid model name: {args.model_name}")
