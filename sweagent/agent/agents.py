@@ -224,6 +224,9 @@ class AgentHook:
 
     def on_actions_generated(self, *, thought: str, action: str, output: str):
         ...
+    
+    def on_sub_action_started(self, *, sub_action: str):
+        ...
 
     def on_sub_action_executed(self, *, obs: str, done: bool):
         ...
@@ -805,6 +808,8 @@ class Agent:
                     sub_action["agent"] == self.name
                     or sub_action["cmd_name"] == self.config.submit_command
                 ):
+                    for hook in self.hooks:
+                        hook.on_sub_action_started(sub_action=sub_action)
                     obs, _, done, info = env.step(sub_action["action"])
                     for hook in self.hooks:
                         hook.on_sub_action_executed(obs=obs, done=done)
