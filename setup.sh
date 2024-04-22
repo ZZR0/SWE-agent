@@ -12,3 +12,6 @@ echo "Setting up docker image for evaluation..."
 docker build --network host --build-arg all_proxy=http://192.168.100.211:10809 -t sweagent/swe-eval:latest -f docker/eval.Dockerfile .
 
 echo "Done with setup!"
+
+# docker build --network host --build-arg all_proxy=http://192.168.100.211:10809 -t zzr/swe-env:latest -f docker/swe-env.Dockerfile .
+
