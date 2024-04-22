@@ -194,3 +194,6 @@ trajectories/*
 .idea/
 
 miniconda3
+dataset
+log
+tmp

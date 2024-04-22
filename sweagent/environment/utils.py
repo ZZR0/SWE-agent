@@ -304,7 +304,7 @@ def _get_persistent_container(ctr_name: str, image_name: str, persistent: bool =
     startup_cmd =  [
         "docker",
         "exec",
-        "-e", "ALL_PROXY=http://192.168.100.211:10809", "--network", "host",
+        "-e", "ALL_PROXY=http://192.168.100.211:10809",
         "-i",
         ctr_name,
         "/bin/bash",

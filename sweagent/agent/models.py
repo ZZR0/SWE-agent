@@ -282,18 +282,38 @@ class LocalModel(BaseModel):
             "cost_per_input_token": 5e-07,
             "cost_per_output_token": 1.5e-06,
             "name": "/hdd2/zzr/models/llama3-instruct-70b/",
+            "stop": "<|eot_id|>",
         },
         "tgi-llama3-70b": {
             "max_context": 8_192,
             "cost_per_input_token": 5e-07,
             "cost_per_output_token": 1.5e-06,
             "name": "tgi",
+            "stop": "<|eot_id|>",
+        },
+        "claude-3-sonnet-20240229": {
+            "max_context": 200_000,
+            "max_tokens": 4096,
+            "cost_per_input_token": 3e-06,
+            "cost_per_output_token": 1.5e-05,
+            "name": "claude-3-sonnet-20240229",
+            "stop": None,
+        },
+        "claude-3-haiku-20240307": {
+            "max_context": 200_000,
+            "max_tokens": 4096,
+            "cost_per_input_token": 2.5e-07,
+            "cost_per_output_token": 1.25e-06,
+            "name": "claude-3-haiku-20240307",
+            "stop": None,
         },
     }
 
     SHORTCUTS = {
         "vllm-llama3-70b": "vllm-llama3-70b",
         "tgi-llama3-70b": "tgi-llama3-70b",
+        "local-claude-sonnet": "claude-3-sonnet-20240229",
+        "local-claude-haiku": "claude-3-haiku-20240307",
     }
     
     def __init__(self, args: ModelArguments, commands: list[Command]):
@@ -341,10 +361,11 @@ class LocalModel(BaseModel):
                 model=self.model_metadata["name"],
                 temperature=self.args.temperature,
                 top_p=self.args.top_p,
-                max_tokens=4096,
-                stop="<|eot_id|>"
+                max_tokens=1024,
+                stop=self.model_metadata["stop"]
             )
-        except BadRequestError:
+        except BadRequestError as e:
+            print(e)
             raise CostLimitExceededError(f"Context window ({self.model_metadata['max_context']} tokens) exceeded")
         # Calculate + update costs, return response
         input_tokens = response.usage.prompt_tokens
@@ -925,7 +946,7 @@ def get_model(args: ModelArguments, commands: Optional[list[Command]] = None):
         return OllamaModel(args, commands)
     elif args.model_name in TogetherModel.SHORTCUTS:
         return TogetherModel(args, commands)
-    elif args.model_name.startswith("vllm") or args.model_name.startswith("tgi"):
+    elif args.model_name.startswith("vllm") or args.model_name.startswith("tgi") or args.model_name.startswith("local"):
         return LocalModel(args, commands)
     else:
         raise ValueError(f"Invalid model name: {args.model_name}")

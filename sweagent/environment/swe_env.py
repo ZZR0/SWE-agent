@@ -550,6 +550,7 @@ class SWEEnv(gym.Env):
         """
         Wrapper for communicate function that raises error if return code is non-zero
         """
+        self.logger.debug(f"Running Command: {input}")
         logs = self.communicate(input, timeout_duration=timeout_duration)
         if self.returncode != 0:
             self.logger.error(f"{error_msg}: {logs}")
