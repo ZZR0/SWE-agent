@@ -55,6 +55,29 @@ def main(predictions_path, log_dir, swe_bench_tasks, testbed, skip_existing, tim
     predictions_path = pred_path_temp
     try:
         print("🏃 Beginning evaluation...")
+        instance_id = f"{item['instance_id']}"
+        image_name = f"zzr/swe-env--{item['repo'].replace('/', '__')}__{item['version']}"
+        cmd = f"""
+            docker run --rm -it \
+            --network host -e ALL_PROXY=http://192.168.100.211:10809 \
+            -v /hdd2/zzr/SWE-agent:/SWE-agent \
+            -v /hdd2/zzr/SWE-bench:/SWE-bench \
+            {image_name} \
+            python /SWE-agent/evaluation/run_evaluation.py \
+                --predictions_path /SWE-agent/dataset/swebench_lite_dev.json \
+                --log_dir /SWE-agent/evaluation/log \
+                --swe_bench_tasks
+                --testbed /testbed \
+                --skip_existing \
+                --timeout 900 \
+                --verbose
+                    
+        """
+        cmd = " ".join(cmd.strip().split())
+        print("==="*10)
+        print(cmd)
+        print("==="*10)
+        os.system(cmd)
         run_evaluation(
             predictions_path=predictions_path,
             log_dir=log_dir,

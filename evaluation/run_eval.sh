@@ -26,7 +26,7 @@ if [ ! -d "$testbed_dir" ]; then
 fi
 
 # Run the Python script with the specified arguments
-echo python evaluation.py \
+python evaluation.py \
     --predictions_path "$predictions_path" \
     --swe_bench_tasks "$dataset_name_or_path" \
     --log_dir "$results_dir" \

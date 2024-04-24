@@ -49,7 +49,7 @@ python run.py --model_name "gpt4" --data_path "/path/to/my_issue.md" --repo_path
 ```
 """
 
-handler = RichHandler(show_time=False, show_path=False)
+handler = RichHandler(show_time=True, show_path=False)
 handler.setLevel(logging.DEBUG)
 logger = logging.getLogger("run_dev")
 logger.setLevel(logging.DEBUG)

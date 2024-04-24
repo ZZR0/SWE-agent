@@ -1,6 +1,7 @@
 import argparse, os
 
 from multiprocessing import Pool, cpu_count
+import re
 from swebench.harness.constants import PatchType
 from swebench.harness.context_manager import TaskEnvContextManager, TestbedContextManager
 from swebench.harness.utils import get_instances, split_instances, DotDict
@@ -113,6 +114,14 @@ def setup_testbed(data: dict):
         pool.close()
         pool.join()
 
+def filter_instances(instance_filter, task_instances: list) -> list:
+    new_instances = []
+    for instance in task_instances:
+        # Skip instances that don't match the instance filter
+        if re.match(instance_filter, instance['instance_id']) is None:
+            continue
+        new_instances.append(instance)
+    return new_instances
 
 def main(args):
     """
@@ -122,6 +131,8 @@ def main(args):
         args.num_workers = cpu_count()
 
     task_instances = get_instances(args.instances_path)
+    if args.instance_filter is not None:
+        task_instances = filter_instances(args.instance_filter, task_instances)
     task_instances_groups = split_instances(task_instances, args.num_workers)
 
     data_groups = [
@@ -149,15 +160,17 @@ def main(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--instances_path", type=str, help="Path to candidate task instances file", required=True)
+    parser.add_argument("--instance_filter", type=str, default=None, help="(Optional) Number of workers")
     parser.add_argument("--log_dir", type=str, help="Path to log directory", required=True)
     parser.add_argument("--conda_link", type=str, default=None, help="(Optional) URL to conda installation to use")
     parser.add_argument("--log_suffix", type=str, default=None, help="(Optional) Suffix to append to log file names")
-    parser.add_argument("--path_conda", type=str, help="(Optional) Path to miniconda3 or anaconda installation")
+    parser.add_argument("--path_conda", type=str, default=None, help="(Optional) Path to miniconda3 or anaconda installation")
     parser.add_argument("--testbed", type=str, help="(Optional) Path to testbed directory")
     parser.add_argument("--temp_dir", type=str, help="(Optional) Path to temporary directory for storing virtual envs")
     parser.add_argument("--timeout", type=int, default=None, help="(Optional) Timeout (seconds) for testing script execution")
     parser.add_argument("--verbose", action="store_true", help="(Optional) Verbose mode")
     parser.add_argument("--num_workers", type=int, default=None, help="(Optional) Number of workers")
+    
     args = parser.parse_args()
     validate_args(args)
     main(args)

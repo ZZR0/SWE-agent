@@ -44,7 +44,7 @@ LONG_TIMEOUT = 500
 PATH_TO_REQS = "/root/requirements.txt"
 PATH_TO_ENV_YML = "/root/environment.yml"
 
-handler = RichHandler(show_time=False, show_path=False)
+handler = RichHandler(show_time=True, show_path=False)
 handler.setLevel(logging.DEBUG)
 logger = logging.getLogger(LOGGER_NAME)
 logger.setLevel(logging.DEBUG)
@@ -438,7 +438,7 @@ class SWEEnv(gym.Env):
             self.container_name, self.image_name, persistent=self.persistent
         )
         try:
-            client = docker.from_env()
+            client = docker.from_env(timeout=500)
         except docker.errors.DockerException as e:
             if "Error while fetching server API version" in str(e):
                 raise RuntimeError(
@@ -564,7 +564,7 @@ class SWEEnv(gym.Env):
             return ""
 
     def communicate_with_handling(
-        self, input: str, error_msg: str, timeout_duration=25
+        self, input: str, error_msg: str, timeout_duration=60
     ) -> str:
         """
         Wrapper for communicate function that raises error if return code is non-zero
@@ -736,9 +736,10 @@ class SWEEnv(gym.Env):
                 self.communicate_with_handling(
                     f"conda create -n {env_name} python={install_configs['python']} {packages} -y",
                     error_msg="Failed to create conda environment",
-                    timeout_duration=LONG_TIMEOUT,
+                    timeout_duration=LONG_TIMEOUT*2,
                 )
             # Install extra pip packages if specified
+            self.logger.debug(f"install_configs: {install_configs}")
             if "pip_packages" in install_configs:
                 self.communicate_with_handling(
                     f"source activate {env_name} && pip install {' '.join(install_configs['pip_packages'])}",

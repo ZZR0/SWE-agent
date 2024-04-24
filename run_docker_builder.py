@@ -1,6 +1,9 @@
 import logging
+import re
 import docker
 import traceback
+
+from sweagent.environment.swe_env import LONG_TIMEOUT
 
 try:
     from rich_argparse import RichHelpFormatter
@@ -108,27 +111,31 @@ class Main:
         self.env = SWEEnv(self.args.environment)
 
     def run(self, index):
+        logger.info("▶️  Beginning task " + str(index))
+        self.env = SWEEnv(self.args.environment)
         env_name = f"{self.env.data[index]['repo'].replace('/', '__')}__{self.env.data[index]['version']}"
         image_name = f"zzr/swe-env--{env_name}"
         tag = "latest"
-        if self.should_skip(f"{image_name}:{tag}"):
-            raise _ContinueLoop
-        logger.info("▶️  Beginning task " + str(index))
-
         observation, info = self.env.reset(index)
         if info is None:
             raise _ContinueLoop
+        self.env.communicate_with_handling(
+            f"mkdir /testbed  && cp -r /{self.env.data[index]['repo'].replace('/', '__')} /testbed/{env_name}",
+            error_msg="Failed to copy github repo.",
+            timeout_duration=LONG_TIMEOUT
+        )
         new_image = self.env.container_obj.commit(repository=image_name, tag=tag)
         logger.info(f"📦 New Docker image created: {image_name}:{tag}")
-
+        self.env.close()
+        
 
     def main(self):
         instrance_len = len(self.env.data)
         for index in range(instrance_len):
             try:
-                self.env = SWEEnv(self.args.environment)
+                if self.should_skip(index):
+                    raise _ContinueLoop
                 self.run(index)
-                self.env.close()
             except _ContinueLoop:
                 continue
             except KeyboardInterrupt:
@@ -147,7 +154,13 @@ class Main:
                 continue
 
 
-    def should_skip(self, image_name_and_tag: str) -> bool:
+    def should_skip(self, index: int) -> bool:
+        env_name = f"{self.env.data[index]['repo'].replace('/', '__')}__{self.env.data[index]['version']}"
+        image_name_and_tag = f"zzr/swe-env--{env_name}:latest"
+        if re.match(self.args.instance_filter, self.env.data[index]['instance_id']) is None:
+            logger.info(f"Instance filter not matched. Skipping instance {self.env.data[index]['instance_id']}")
+            return True
+        
         try:
             client = docker.from_env()
         except docker.errors.DockerException as e:
