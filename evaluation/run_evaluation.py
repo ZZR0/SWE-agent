@@ -17,7 +17,6 @@ from swebench.harness.constants import (
     KEY_MODEL,
     KEY_PREDICTION,
 )
-from swebench.harness.engine_evaluation import main as eval_engine
 from swebench.harness.utils import get_instances
 from swebench.metrics.getters import get_eval_refs
 
@@ -26,6 +25,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger("run_evaluation")
 
+WORK_DIR = "/data1/zengzhengran/"
 
 def deterministic_hash(input_string: str, length: int = None):
     input_bytes = input_string.encode('utf-8')
@@ -34,7 +34,6 @@ def deterministic_hash(input_string: str, length: int = None):
     if length is None:
         return hex_digest
     return hex_digest[:length]
-
 
 def validate_predictions(predictions_path, tasks_ids):
     # Check that predictions file exists
@@ -57,7 +56,36 @@ def validate_predictions(predictions_path, tasks_ids):
         )
 
 def eval_engine_docker(args):
-    eval_engine(args)
+    # instance_id = f"{item['instance_id']}"
+    # if not "pyvista__pyvista-4315" in instance_id:
+    #     return
+    # image_name = f"zzr/swe-env--{item['repo'].replace('/', '__')}__{item['version']}"
+    image_name = "image_name"
+    cmd = f"""
+        docker run --rm -it \
+        --network host -e ALL_PROXY=http://192.168.100.211:10809 \
+        -v {WORK_DIR}/SWE-agent:/SWE-agent \
+        -v {WORK_DIR}/SWE-bench:/SWE-bench \
+        {image_name} \
+        python /SWE-agent/evaluation/engine_evaluation.py \
+            --path_conda /root/miniconda3 \
+            --testbed /testbed \
+            --num_workers 1 \
+            --instance_filter instance_id \
+            --log_suffix {args.log_suffix} \
+            --predictions_path {args.predictions_path} \
+            --skip_existing {args.skip_existing} \
+            --temp_dir {args.temp_dir} \
+            --timeout {args.timeout} \
+            --verbose {args.verbose} \
+            
+    """
+    cmd = " ".join(cmd.strip().split())
+    print("==="*10)
+    print(cmd)
+    print("==="*10)
+    exit()
+    # os.system(cmd)
 
 def main(
     predictions_path: str,

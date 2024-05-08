@@ -136,6 +136,14 @@ def evaluate_predictions(data: dict):
             ):
                 continue
 
+def filter_instances(instance_filter, task_instances: list) -> list:
+    new_instances = []
+    for instance in task_instances:
+        # Skip instances that don't match the instance filter
+        if re.match(instance_filter, instance['instance_id']) is None:
+            continue
+        new_instances.append(instance)
+    return new_instances
 
 def main(args):
     """
@@ -146,7 +154,8 @@ def main(args):
         args.num_workers = cpu_count()
 
     predictions = get_instances(args.predictions_path)
-
+    if args.instance_filter is not None:
+        task_instances = filter_instances(args.instance_filter, task_instances)
     # Remove predictions that have already been evaluated
     if args.skip_existing:
         predictions_filtered = []
@@ -186,6 +195,7 @@ def main(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--predictions_path", type=str, help="Path to predictions instances file", required=True)
+    parser.add_argument("--instance_filter", type=str, default=None, help="(Optional) Number of workers")
     parser.add_argument("--log_dir", type=str, help="Path to log directory", required=True)
     parser.add_argument("--conda_link", type=str, default=None, help="(Optional) URL to conda installation to use")
     parser.add_argument("--log_suffix", type=str, default=None, help="(Optional) Suffix to append to log file names")
