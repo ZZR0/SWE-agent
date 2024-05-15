@@ -174,7 +174,7 @@ class SWEEnv(gym.Env):
         if not self.args.no_mirror and self.record["problem_statement_source"] == "swe-bench":
             self.logger.info(f"{self._repo_name} not found in container, cloning...")
             self.communicate_with_handling(
-                input=f"git clone https://{token_prefix}github.com/swe-bench/{self._repo_name}.git",
+                input=f"git clone https://gitee.com/zzr0/{self._repo_name}.git",
                 error_msg="Failed to clone repository from mirror",
                 timeout_duration=LONG_TIMEOUT,
             )
@@ -497,7 +497,7 @@ class SWEEnv(gym.Env):
     def _communicate(
         self,
         input: str,
-        timeout_duration=25,
+        timeout_duration=360,
     ) -> str:
         if "SWE_AGENT_EXPERIMENTAL_COMMUNICATE" in os.environ:
             return self._communicate_experimental(input, timeout_duration)

@@ -288,7 +288,7 @@ class Main:
         self.args = args
         self.agent = Agent("primary", args.agent)
         self.env = SWEEnv(args.environment)
-        self.traj_dir = Path("trajectories") / Path(getuser()) / args.run_name
+        self.traj_dir = Path("trajectories") / args.run_name
         self.traj_dir.mkdir(parents=True, exist_ok=True)
         self._save_arguments()
         default_hooks = [

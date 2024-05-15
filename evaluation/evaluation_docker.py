@@ -59,7 +59,7 @@ def main(predictions_path, log_dir, swe_bench_tasks, testbed, skip_existing, tim
         image_name = f"zzr/swe-env--{item['repo'].replace('/', '__')}__{item['version']}"
         cmd = f"""
             docker run --rm -it \
-            --network host -e ALL_PROXY=http://192.168.100.211:10809 \
+            --network host -e ALL_PROXY=http://127.0.0.1:10809 \
             -v /hdd2/zzr/SWE-agent:/SWE-agent \
             -v /hdd2/zzr/SWE-bench:/SWE-bench \
             {image_name} \

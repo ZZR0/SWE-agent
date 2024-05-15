@@ -61,7 +61,7 @@ def eval_engine_docker(args):
     image_name = f"zzr/swe-env--{args.repo.replace('/', '__')}__{args.version}"
     cmd = f"""
         docker run --rm -it \
-        --network host -e ALL_PROXY=http://192.168.100.211:10809 \
+        --network host -e ALL_PROXY=http://127.0.0.1:10809 \
         -v {WORK_DIR}/SWE-agent:/SWE-agent \
         -v {WORK_DIR}/SWE-bench:/SWE-bench \
         {image_name} \

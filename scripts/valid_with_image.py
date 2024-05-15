@@ -6,14 +6,14 @@ def main(args):
     data = json.load(open(args.data_path))
     for item in data:
         instance_id = f"{item['instance_id']}"
-        if not "pyvista__pyvista-4315" in instance_id:
-            continue
+        # if not "pyvista__pyvista-4315" in instance_id:
+        #     continue
         image_name = f"zzr/swe-env--{item['repo'].replace('/', '__')}__{item['version']}"
         cmd = f"""
             docker run --rm -it \
-            --network host -e ALL_PROXY=http://192.168.100.211:10809 \
-            -v /hdd2/zzr/SWE-agent:/SWE-agent \
-            -v /hdd2/zzr/SWE-bench:/SWE-bench \
+            --network host -e ALL_PROXY=http://127.0.0.1:10809 \
+            -v /data1/zengzhengran/SWE-agent:/SWE-agent \
+            -v /data1/zengzhengran/SWE-bench:/SWE-bench \
             {image_name} \
             python /SWE-agent/evaluation/engine_validation.py \
                 --instances_path /SWE-agent/dataset/swebench_lite_dev.json \

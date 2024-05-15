@@ -1,5 +1,5 @@
 docker run --rm -it \
-    --network host -e ALL_PROXY=http://192.168.100.211:10809 \
+    --network host -e ALL_PROXY=http://127.0.0.1:10809 \
     -v /data1/zengzhengran/SWE-agent:/SWE-agent \
     sweagent/swe-eval:latest \
     python evaluation.py \
