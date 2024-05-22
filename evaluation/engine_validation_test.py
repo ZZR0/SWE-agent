@@ -9,10 +9,11 @@ from swebench.harness.utils import get_instances, split_instances, DotDict
 
 SKIP_INSTANCES = {"pytest-dev/pytest": ["6387", "7956", "3805"]}
 
+global_coverage = False # 默认不使用coverage run -m pytest
 
 def validate_args(args):
     """
-    Validation for command line arguments
+    验证命令行参数
     """
     if not os.path.exists(args.instances_path):
         raise ValueError(f"Could not find instances file at {args.instances_path}")
@@ -33,19 +34,19 @@ def validate_args(args):
     if args.num_workers is not None and args.num_workers < 1:
         raise ValueError(f"Number of workers must be a positive integer")
 
-
 def verify_task_instances(data: dict):
     """
-    Sets up task environment context manager. Each task instance is then
-    installed and validated within the context manager.
+    设置任务环境上下文管理器。然后在上下文管理器中安装并验证每个任务实例。
 
     Args:
-        data: Dict containing task instances and other data
-            task_instances: List of task instances
+        data: 包含任务实例和其他数据的字典
+            task_instances: 任务实例列表
             + setup_testbed args
     """
+    # 将输入的字典转换为DotDict，使其可以像访问属性一样访问字典元素
     data_dict = DotDict(data)
-    for task_instance in data_dict.task_instances:
+    for task_instance in data_dict.task_instances: # 遍历任务实例
+        # 使用任务环境上下文管理器，设置任务实例的环境
         with TaskEnvContextManager(
             task_instance,
             data_dict.testbed,
@@ -56,19 +57,32 @@ def verify_task_instances(data: dict):
             timeout=data_dict.timeout,
             log_suffix=data_dict.log_suffix,
         ) as tcm:
+            # 如果任务实例的仓库在跳过的实例中，并且任务实例的拉取号也在跳过的实例中，则跳过此次循环
             if (
                 task_instance["repo"] in SKIP_INSTANCES
                 and task_instance["pull_number"]
                 in SKIP_INSTANCES[task_instance["repo"]]
             ):
                 continue
+            # 如果以下任一操作失败，则跳过此次循环
+            # 1. 重置任务环境
+            # 2. 运行安装任务
+            # 3. 应用test patch（符合我们要求的test用例）
+            # 4. 运行测试任务
+            # 5. 应用golden patch
+            # 6. 再次运行测试任务
+            print("-"*20)
+            print(task_instance["FAIL_TO_PASS"])
+            print("-"*20)
             if (
                 not tcm.reset_task_env(task_instance)
                 or not tcm.run_install_task(task_instance)
                 or not tcm.apply_patch(task_instance["test_patch"], patch_type=PatchType.PATCH_TEST.value) # type是‘test'
+                ########### 这里也可以apply其他patch，包括我们自己生成的test_patch
+                ########### 之后要修改run_tests_task里的指令，使它只运行我们想要的test用例，即，对instance["test_cmd"]指令重构（175行-177行）
                 or not tcm.run_tests_task(task_instance)
                 or not tcm.apply_patch(task_instance["patch"], patch_type=PatchType.PATCH_GOLD.value) # type是‘gold'
-                or not tcm.run_tests_task(task_instance)
+                or not tcm.run_tests_task(task_instance, global_coverage)
             ):
                 continue
 
@@ -98,6 +112,7 @@ def setup_testbed(data: dict):
         temp_dir=data_dict.temp_dir,
         timeout=data_dict.timeout,
         verbose=data_dict.verbose,
+        coverage=global_coverage,
     ) as tcm:
         distributed_task_list = tcm.get_distributed_tasks()
         for task_list in distributed_task_list:
@@ -134,6 +149,10 @@ def main(args):
     if args.instance_filter is not None:
         task_instances = filter_instances(args.instance_filter, task_instances)
     task_instances_groups = split_instances(task_instances, args.num_workers)
+    
+    if args.coverage_report == True:
+        global global_coverage
+        global_coverage = True
 
     data_groups = [
         {
@@ -170,6 +189,7 @@ if __name__ == "__main__":
     parser.add_argument("--timeout", type=int, default=None, help="(Optional) Timeout (seconds) for testing script execution")
     parser.add_argument("--verbose", action="store_true", help="(Optional) Verbose mode")
     parser.add_argument("--num_workers", type=int, default=None, help="(Optional) Number of workers")
+    parser.add_argument("--coverage_report", action="store_true", help="(Optional) evaluate the test coverage")
     
     args = parser.parse_args()
     validate_args(args)

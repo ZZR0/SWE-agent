@@ -29,15 +29,15 @@ logging.basicConfig(
 )
 logger = logging.getLogger("evaluation")
 
-WORK_DIR = "/data1/zengzhengran/"
+WORK_DIR = "/data1/zengzhengran/sweTrans_yang"
 
 def validate_predictions(predictions_path, tasks_ids):
-    # Check that predictions file exists
+    # 检查预测文件是否存在
     if not any([predictions_path.endswith(x) for x in [".json", ".jsonl"]]):
         raise ValueError("Predictions path must be .json or .jsonl file")
-    predictions = get_instances(predictions_path)
+    predictions = get_instances(predictions_path) # 列表，每个元素是一个字典，每个字典形如{'model_name_or_path': 'vllm-llama3-70b', 'instance_id': 'pvlib__pvlib-python-1072', 'model_patch': '\ndiff --git a/pvlib/temperature.py ...'}
     not_in_tasks = []
-    # Check that predictions are correctly formatted
+    # 检查预测是否正确格式化
     for pred in predictions:
         if any([x not in pred for x in [KEY_INSTANCE_ID, KEY_MODEL, KEY_PREDICTION]]):
             raise ValueError(f"Every prediction must have {KEY_INSTANCE_ID}, {KEY_MODEL}, and {KEY_PREDICTION} fields")
@@ -55,13 +55,13 @@ def eval_engine_docker(args):
     # instance_id = f"{item['instance_id']}"
     # if not "pyvista__pyvista-4315" in instance_id:
     #     return
-    args.log_dir = args.log_dir.replace(f"{WORK_DIR}", "/")
+    args.log_dir = args.log_dir.replace(f"{WORK_DIR}", "/") # 把工作目录替换成/，因后面docker要做映射，即把工作目录映射到宿主机
     args.temp_dir = args.temp_dir.replace(f"{WORK_DIR}", "/")
     args.predictions_path = args.predictions_path.replace(f"{WORK_DIR}", "/")
     image_name = f"zzr/swe-env--{args.repo.replace('/', '__')}__{args.version}"
     cmd = f"""
         docker run --rm -it \
-        --network host -e ALL_PROXY=http://127.0.0.1:10809 \
+        --network host -e ALL_PROXY=http://192.168.100.211:10809 \
         -v {WORK_DIR}/SWE-agent:/SWE-agent \
         -v {WORK_DIR}/SWE-bench:/SWE-bench \
         {image_name} \
@@ -74,9 +74,9 @@ def eval_engine_docker(args):
             --temp_dir {args.temp_dir} \
             --timeout {args.timeout} \
     """
-    if args.verbose:
+    if args.verbose: # 是否显示日志
         cmd += " --verbose"
-    if args.skip_existing:
+    if args.skip_existing: # 是否跳过已经存在日志的预测结果的评估
         cmd += " --skip_existing"
     cmd = " ".join(cmd.strip().split())
     logger.info("==="*10)
@@ -98,22 +98,22 @@ def run_evaluation(
     path_conda: str = None,
 ):
     """
-    Runs evaluation on predictions for each model/repo/version combination.
+    对每个模型/库/版本组合的预测结果运行评估。
 
     Args:
         predictions_path (str): Path to the predictions file.
         swe_bench_tasks (str): Path to the SWE-bench tasks file OR HF dataset name.
-        log_dir (str): Path to the directory where logs will be saved.
-        testbed (str): Path to the directory where testbeds will be saved.
-        skip_existing (bool): Whether to skip evaluations for predictions that already have logs.
-        timeout (int): Timeout for each evaluation.
-        verbose (bool): Whether to print verbose output.
-        path_conda (str): Path to the conda environment file.
+        log_dir (str): 保存日志的目录路径。
+        testbed (str): 保存测试结果的目录路径。
+        skip_existing (bool): 是否跳过已经存在日志的预测结果的评估。
+        timeout (int): 每个评估的超时时间。
+        verbose (bool): 是否打印详细输出。
+        path_conda (str): conda 环境文件的路径。
 
     Raises:
-        ValueError: If log_dir is not a directory, testbed is not a directory, or swe_bench_tasks does not exist.
+        ValueError: 如果 log_dir 不是目录，testbed 不是目录，或 swe_bench_tasks 不存在。
     """
-    # Validate arguments
+    # 验证参数
     if not os.path.exists(log_dir) or not os.path.isdir(log_dir):
         raise ValueError("--log_dir must exist and point at a directory")
     if not os.path.exists(testbed) or not os.path.isdir(testbed):
@@ -121,36 +121,36 @@ def run_evaluation(
     
     tasks = list(get_eval_refs(swe_bench_tasks).values())
 
-    # Verify arguments are formatted correctly
+    # 验证参数的格式是否正确
     if not isinstance(tasks, list):
         raise ValueError(f"{swe_bench_tasks} must contain an array of tasks")
-    tasks_map = {t[KEY_INSTANCE_ID]: t for t in tasks}
-    predictions_path = os.path.abspath(predictions_path)
-    validate_predictions(predictions_path, [t[KEY_INSTANCE_ID] for t in tasks])
+    tasks_map = {t[KEY_INSTANCE_ID]: t for t in tasks} # 字典，格式形如{'pyvista__pyvista-4315': {'instance_id': 'pyvista__pyvista-4315', 'model': 'pyvista', 'version': '4315'}, ...}
+    predictions_path = os.path.abspath(predictions_path) # 获取绝对路径
+    validate_predictions(predictions_path, [t[KEY_INSTANCE_ID] for t in tasks]) # 检查是否有非法格式，是否有predictions无法对应tasks
 
-    # Group predictions by model
+    # 按模型对预测进行分组
     predictions = get_instances(predictions_path)
     logger.info(f"Found {len(predictions)} predictions in predictions file")
 
     # For each model, split predictions by repo + save to folder
-    eval_args = []
-    temp_dirs = []
+    eval_args = [] # 保存所有参数的列表
+    temp_dirs = [] # 保存文件夹路径的列表，文件夹形如'/data1/zengzhengran/sweTrans_yang/SWE-agent/evaluation/testbed/pvlib__pvlib-python-1072'
     for p in predictions:
         # Group predictions by repository, version
         repo = p[KEY_INSTANCE_ID].rsplit("-", 1)[0]
         t = tasks_map[p[KEY_INSTANCE_ID]]
-        p.update(t)
+        p.update(t) # 将t中的键值对添加到p中
         version = t["version"]
 
-        # Create instance_id specific testbed folder
+        # 创建针对instance_id的testbed文件夹
         testbed_save_dir = os.path.join(testbed, p[KEY_INSTANCE_ID])
         os.makedirs(testbed_save_dir, exist_ok=True)
 
-        # Create predictions file for model/repo/version
+        # 创建用于存储model/repo/version的预测文件
         file_name = f"{predictions_path.split('/')[-1]}"
         file_path = os.path.join(testbed_save_dir, file_name)
         if file_path.endswith(".jsonl"):
-            file_path = file_path[:-1]
+            file_path = file_path[:-1] # 把jsonl改为json
 
         # Create evaluation args
         args = argparse.Namespace()
@@ -174,13 +174,15 @@ def run_evaluation(
         eval_args.append(args)
         temp_dirs.append(testbed_save_dir)
 
-    eval_args = eval_args[1:2]
-    temp_dirs = temp_dirs[1:2]
-    if len(eval_args) == 0:
+    eval_args = eval_args[1:2] # 提取索引为1的元素，形如[Namespace(repo='sqlfluff__sqlfluff', version='0.6', log_dir='/data1/zengzhengran/sweTrans_yang/SWE-agent/evaluation/log', log_suffix=None, num_workers=1, predictions_path='/data1/zengzhengran/sweTrans_yang/SWE-agent/evaluation/testbed/sqlfluff__sqlfluff-1625/all_preds_filtered.json', skip_existing=True, temp_dir='/data1/zengzhengran/sweTrans_yang/SWE-agent/evaluation/testbed/sqlfluff__sqlfluff-1625', timeout=900, verbose=True, conda_link=None, path_conda=None)]
+    temp_dirs = temp_dirs[1:2] # 提取索引为1的元素
+    if len(eval_args) == 0: # 没有预测结果
         logger.info("No predictions to evaluate")
         return
 
     # Run evaluation on each model/repo
+    # 如果num_processes大于0，则选择较小的值，以确保不超过eval_args的长度
+    # 否则，num_processes等于eval_args的长度
     num_processes = min(len(eval_args), num_processes) if num_processes > 0 else len(eval_args)
     try:
         if num_processes == 1:
@@ -197,7 +199,7 @@ def run_evaluation(
             # Kill all processes that are using the temp directory
             subprocess.run(f"lsof +D {temp_dir} | awk 'NR>1 {{print $2}}' | xargs kill", shell=True, capture_output=True)
             # Remove temp directory
-            shutil.rmtree(temp_dir, ignore_errors=True)
+            # shutil.rmtree(temp_dir, ignore_errors=True) # 删掉tmp文件夹
 
 def main(predictions_path, log_dir, swe_bench_tasks, testbed, 
          skip_existing, timeout, verbose, conda_link, 
@@ -208,19 +210,27 @@ def main(predictions_path, log_dir, swe_bench_tasks, testbed,
     eval_refs = get_eval_refs(swe_bench_tasks)
     for k, v in eval_refs.items():
         eval_refs[k] = {key: v[key] for key in [KEY_INSTANCE_ID, "FAIL_TO_PASS", "PASS_TO_PASS"]}
+    """
+    转换后的格式
+        eval_refs = {'sqlfluff__sqlfluff-1625': 
+        {'instance_id': 'sqlfluff__sqlfluff-1625', 
+         'FAIL_TO_PASS': ['test/cli/commands_test.py::test__cli__command_directed'], 
+         'PASS_TO_PASS': ['test/cli/commands_test.py::test_encoding[utf-32-UTF-32]', ...]
+         },}
+    """
 
     # Change model_name_or_patch field to directory name for all predictions
-    directory = os.path.dirname(predictions_path)
-    directory_name = directory.rsplit("/", 1)[-1]
-    pred_path_orig = predictions_path
-    pred_path_temp = predictions_path.replace(".jsonl", "_filtered.jsonl")
+    directory = os.path.dirname(predictions_path) # 获取给定文件路径的目录路径
+    directory_name = directory.rsplit("/", 1)[-1] # 通过将目录路径按照"/"进行拆分，获取目录的名称
+    pred_path_orig = predictions_path # 备份原始的文件路径
+    pred_path_temp = predictions_path.replace(".jsonl", "_filtered.jsonl") # 将原始文件路径中的".jsonl"替换为"_filtered.jsonl"，生成一个新的文件路径
 
-    pred_total, pred_will_eval = 0, 0
+    pred_total, pred_will_eval = 0, 0 # 初始化预测总数和将要评估的预测数为0
     with open(pred_path_temp, "w") as f:
         for l in open(pred_path_orig, "r").readlines():
             pred_total += 1
             p = json.loads(l)
-            # Exclude predictions w/ empty strings
+            # 排除预测结果为空字符串的情况，写入_filtered.jsonl中
             if p[KEY_PREDICTION] is not None and p[KEY_PREDICTION].strip() != "":
                 p[KEY_MODEL] = directory_name
                 json.dump(p, f)
@@ -250,58 +260,58 @@ def main(predictions_path, log_dir, swe_bench_tasks, testbed,
     except Exception as e:
         logger.info(f"❌ Evaluation failed: {e}\n{traceback.format_exc()}")
     logger.info("==================================")
-    os.remove(pred_path_temp)
+    # os.remove(pred_path_temp)
 
     # Get predictions, define log_dir
-    predictions = [json.loads(l) for l in open(pred_path_orig, "r").readlines()]
-    logger.info(f"Log directory for evaluation run: {log_dir}")
+    predictions = [json.loads(l) for l in open(pred_path_orig, "r").readlines()] # 获取预测结果，将每行字符串解析为JSON对象，并存储在列表predictions中
+    logger.info(f"Log directory for evaluation run: {log_dir}") # 使用logger记录日志，打印包含评估运行日志目录的消息
 
     # Iterate through predictions
-    scorecards = []
+    scorecards = [] # 总体结果
     for p in predictions:
         scorecard = {KEY_INSTANCE_ID: p[KEY_INSTANCE_ID], "statuses": [], "stats": {}}
 
-        # Add trajectory statistics if traj_path exists
+        # 如果存在traj_path，添加trajectory统计信息
         traj_path = os.path.join(directory, f"{p[KEY_INSTANCE_ID]}.traj")
         if os.path.exists(traj_path):
-            traj_data = json.load(open(traj_path, "r"))
-            scorecard["stats"]["traj_num_steps"] = len(traj_data["trajectory"])
-            scorecard["stats"]["traj_action_dist"] = dict(
-                Counter(
+            traj_data = json.load(open(traj_path, "r")) # 加载数据
+            scorecard["stats"]["traj_num_steps"] = len(traj_data["trajectory"]) # 记录"trajectory"的长度
+            scorecard["stats"]["traj_action_dist"] = dict( # 统计"history"中"assistant"角色的action的分布情况
+                Counter( # 统计role为assistant的action的情况，结果形如{'create': 5, 'edit': 2}
                     [
-                        entry["action"].strip().split()[0]
+                        entry["action"].strip().split()[0] # 只取第一个词，动词，形如'create'，'edit'
                         if entry["role"] == "assistant" and "action" in entry and len(entry["action"]) > 0
                         else None
                         for entry in traj_data["history"]
                     ]
                 )
             )
-            scorecard["exit_status"] = (
-                traj_data["info"]["exit_status"]
+            scorecard["exit_status"] = ( # 记录exit_status的状况
+                traj_data["info"]["exit_status"] # 如果info里有，则取info的exit_status
                 if "exit_status" in traj_data["info"]
-                else "n/a"
+                else "n/a" # 否则取n/a
             )
 
-        # Check that a prediction was generated
+        # 检查是否生成了预测，即预测是否为空
         if p[KEY_PREDICTION] is None or p[KEY_PREDICTION].strip() == "":
-            scorecard["statuses"].append("not_generated")
+            scorecard["statuses"].append("not_generated") # 如果预测结果为空，则将"not_generated"状态添加到评估结果的"statuses"字段中
             scorecards.append(scorecard)
             continue
-        scorecard["statuses"].append("generated")
+        scorecard["statuses"].append("generated") # 有预测，则将"generated"状态添加到评估结果的"statuses"字段中
 
         # Get log file
-        log_file_name = f"{p[KEY_INSTANCE_ID]}.{p[KEY_MODEL]}.eval.log"
+        log_file_name = f"{p[KEY_INSTANCE_ID]}.{p[KEY_MODEL]}.eval.log" # 形如'pvlib__pvlib-python-1072.vllm-llama3-70b__SWE-bench_Lite__default__t-0.00__p-0.95__c-2.00__install-1.eval.log'
         if args.log_suffix is not None:
             log_file_name = f"{p[KEY_INSTANCE_ID]}.{p[KEY_MODEL]}.{args.log_suffix}.eval.log"
         log_path = os.path.join(
             log_dir, log_file_name
-        )
+        ) # 形如'/data1/zengzhengran/sweTrans_yang/SWE-agent/evaluation/log/pvlib__pvlib-python-1072.vllm-llama3-70b__SWE-bench_Lite__default__t-0.00__p-0.95__c-2.00__install-1.eval.log'
         if not os.path.exists(log_path):
             scorecard["statuses"].append("build_failure")
             scorecards.append(scorecard)
             continue
 
-        # Get evaluation logs
+        # 状态映射图（只关心 "APPLY_PATCH_PASS (pred)"之后的内容），log中信息是否完整
         eval_sm, found = get_logs_eval(log_path)
 
         # Check that the prediction generated
@@ -312,11 +322,11 @@ def main(predictions_path, log_dir, swe_bench_tasks, testbed,
 
         with open(log_path, "r") as f:
             log_contents = f.read()
-            if INSTALL_FAIL in log_contents:
+            if INSTALL_FAIL in log_contents: # "install_fail"在log中出现，则将"install_fail"状态添加到评估结果的"statuses"字段中
                 scorecard["statuses"].append("install_fail")
 
         # Get resolution status
-        report = get_eval_report(eval_sm, eval_refs[p[KEY_INSTANCE_ID]])
+        report = get_eval_report(eval_sm, eval_refs[p[KEY_INSTANCE_ID]]) # 结合log文件和原来构建的（Fail-Pass, Pass-Pass）对，得到评估结果
         scorecard["test_results"] = {
             "failure": {
                 "FAIL_TO_PASS": report["FAIL_TO_PASS"]["failure"],
@@ -348,7 +358,7 @@ def main(predictions_path, log_dir, swe_bench_tasks, testbed,
         scorecards.append(scorecard)
 
     # Save to summary, scorecard json
-    path_scorecards = os.path.join(directory, "scorecards.json")
+    path_scorecards = os.path.join(directory, "scorecards.json") # 形如'/data1/zengzhengran/sweTrans_yang/SWE-agent/trajectories/zengzhengran/vllm-llama3-70b__SWE-bench_Lite__default__t-0.00__p-0.95__c-2.00__install-1/scorecards.json'
     with open(path_scorecards, "w") as f:
         json.dump(scorecards, fp=f, indent=2)
     logger.info(f"- Wrote per-instance scorecards to {path_scorecards}")
@@ -359,7 +369,7 @@ def main(predictions_path, log_dir, swe_bench_tasks, testbed,
     for k, v in report.items():
         logger.info(f"- {k}: {len(v)}")
 
-    path_results = os.path.join(directory, "results.json")
+    path_results = os.path.join(directory, "results.json") # 形如'/data1/zengzhengran/sweTrans_yang/SWE-agent/trajectories/zengzhengran/vllm-llama3-70b__SWE-bench_Lite__default__t-0.00__p-0.95__c-2.00__install-1/results.json'
     with open(path_results, "w") as f:
         json.dump(report, f, indent=2)
     logger.info(f"- Wrote summary of run to {path_results}")
@@ -382,3 +392,4 @@ if __name__ == "__main__":
     
     args = parser.parse_args()
     main(**vars(args))
+

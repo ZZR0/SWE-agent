@@ -25,7 +25,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger("run_evaluation")
 
-WORK_DIR = "/data1/zengzhengran/"
+WORK_DIR = "/data1/zengzhengran/sweTrans_yang"
 
 def deterministic_hash(input_string: str, length: int = None):
     input_bytes = input_string.encode('utf-8')
@@ -63,7 +63,7 @@ def eval_engine_docker(args):
     image_name = "image_name"
     cmd = f"""
         docker run --rm -it \
-        --network host -e ALL_PROXY=http://127.0.0.1:10809 \
+        --network host -e ALL_PROXY=http://192.168.100.211:10809 \
         -v {WORK_DIR}/SWE-agent:/SWE-agent \
         -v {WORK_DIR}/SWE-bench:/SWE-bench \
         {image_name} \
